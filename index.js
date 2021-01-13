@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2016-Present Trendz.
- * MIT Licence.
+ * Copyright (C) 2016-present cm45t3r.
+ * MIT License.
  */
 
 module.exports = require('./src/candlestick');

@@ -1,190 +1,307 @@
 /*
- * Copyright (C) 2016-Present Trendz.
- * MIT Licence.
+ * Copyright (C) 2016-present cm45t3r.
+ * MIT License.
  */
 
+class ArgumentRequiredError extends Error {
+  constructor(argument) {
+    super(`Argument ${argument} is required.`);
+    this.name = 'ArgumentRequiredError';
+  }
+}
+
+class PropertyRequiredError extends Error {
+  constructor(property, argument, ohlc) {
+    super(`${property} is required in ${argument || 'argument'}. Value: ${ohlc}`);
+    this.name = 'PropertyRequiredError';
+  }
+}
+
+function validate(ohlc, options) {
+  if (ohlc === undefined || ohlc === null) {
+    throw new ArgumentRequiredError(options.name);
+  }
+
+  const properties = options.properties;
+
+  for (let property of properties) {
+    if (!ohlc[property]) {
+      throw new PropertyRequiredError(property, options.name, ohlc);
+    }
+  }
+
+  if (options.high && options.low && ohlc.high < ohlc.low) {
+    throw new Error('Low price cannot be greater than high price.');
+  }
+}
+
 /**
- Make sure objects below comprise the following fields:
- {
-    open: Number,
-    high: Number,
-    low: Number,
-    close: Number
- }*/
-
-function bodyLen(candlestick) {
-    return Math.abs(candlestick.open - candlestick.close);
+ * Calculate the distance between `open` and `close` prices from an OHLC candlestick.
+ *
+ * @param {Object} ohlc - An object including at least the following properties:
+ *
+ * `{ open: number, close: number }`
+ *
+ * @param {number} ohlc.open - opening price of the security.
+ * @param {number} ohlc.close - closing price of the security.
+ * @returns {number} a positive `number` or zero.
+ */
+function bodyLength(ohlc) {
+  validate(ohlc, { name: 'ohlc', properties: ['open', 'close'] });
+  return Math.abs(ohlc.open - ohlc.close);
 }
 
-function wickLen(candlestick) {
-    return candlestick.high - Math.max(candlestick.open, candlestick.close);
+/**
+ * Calculate the distance between `close` and `high` prices from a bullish OHLC candlestick,
+ * or between `open` and `high` prices from a bearish OHLC candlestick.
+ *
+ * @param {Object} ohlc - An object including at least the following properties:
+ *
+ * `{ open: number, high: number, close: number }`
+ *
+ * @param {number} ohlc.open - opening price of the security.
+ * @param {number} ohlc.high - highest price of the security.
+ * @param {number} ohlc.close - closing price of the security.
+ * @throws {InvalidHighValueException} high must be higher
+ * @returns {number} a positive `number` or zero.
+ */
+function wickLength(ohlc) {
+  validate(ohlc);
+  return ohlc.high - Math.max(ohlc.open, ohlc.close);
 }
 
-function tailLen(candlestick) {
-    return Math.min(candlestick.open, candlestick.close) - candlestick.low;
+/**
+ * Return the distance between `open` and `low` in a bullish OHLC candlestick,
+ * or between `close` and `low` in a bearish OHLC candlestick.
+ *
+ * @param ohlc An object including at least the following properties:
+ *
+ * `{ open: Number, low: Number, close: Number }`
+ */
+function tailLength(ohlc) {
+  validate(ohlc);
+  return Math.min(ohlc.open, ohlc.close) - ohlc.low;
 }
 
-function isBullish(candlestick) {
-    return candlestick.open < candlestick.close;
+/**
+ * Return the distance between `close` and `low` in a bullish OHLC candlestick,
+ * or between `open` and `low` in a OHLC candlestick.
+ *
+ * @param ohlc An object including at least the following properties:
+ *
+ * `{ open: Number, close: Number }`
+ */
+function isBullish(ohlc) {
+  validate(ohlc);
+  return ohlc.open < ohlc.close;
 }
 
-function isBearish(candlestick) {
-    return candlestick.open > candlestick.close;
+/**
+ * Return body length of the candlestick.
+ * @param ohlc Object including the following properties:
+ *
+ * `{ open: Number, high: Number, low: Number, close: Number }`
+ */
+function isBearish(ohlc) {
+  validate(ohlc);
+  return ohlc.open > ohlc.close;
 }
 
-function isHammerLike(candlestick) {
-    return tailLen(candlestick) > (bodyLen(candlestick) * 2) &&
-           wickLen(candlestick) < bodyLen(candlestick);
+/**
+ * Return body length of the candlestick.
+ * @param ohlc Object including the following properties:
+ *
+ * `{ open: Number, high: Number, low: Number, close: Number }`
+ */
+function isHammerLike(ohlc) {
+  validate(ohlc);
+  return tailLength(ohlc) > (bodyLength(ohlc) * 2)
+    && wickLength(ohlc) < bodyLength(ohlc);
 }
 
-function isInvertedHammerLike(candlestick) {
-    return wickLen(candlestick) > (bodyLen(candlestick) * 2) &&
-           tailLen(candlestick) < bodyLen(candlestick);
+/**
+ * Return body length of the candlestick.
+ * @param ohlc Object including the following properties:
+ *
+ * `{ open: Number, high: Number, low: Number, close: Number }`
+ */
+function isInvertedHammerLike(ohlc) {
+  validate(ohlc);
+  return wickLength(ohlc) > (bodyLength(ohlc) * 2)
+    && tailLength(ohlc) < bodyLength(ohlc);
 }
 
+/**
+ * Return body length of the candlestick.
+ * @param ohlc Object including the following properties:
+ *
+ * `{ open: Number, high: Number, low: Number, close: Number }`
+ */
 function isEngulfed(shortest, longest) {
-    return bodyLen(shortest) < bodyLen(longest);
+  validate(ohlc);
+  return bodyLength(shortest) < bodyLength(longest);
 }
 
+/**
+ * Return body length of the candlestick.
+ * @param ohlc Object including the following properties:
+ *
+ * `{ open: Number, high: Number, low: Number, close: Number }`
+ */
 function isGap(lowest, upmost) {
-    return Math.max(lowest.open, lowest.close) < Math.min(upmost.open, upmost.close);
+  validate(ohlc);
+  return Math.max(lowest.open, lowest.close) < Math.min(upmost.open, upmost.close);
 }
 
+/**
+ * Return body length of the candlestick.
+ * @param ohlc Object including the following properties:
+ *
+ * `{ open: Number, high: Number, low: Number, close: Number }`
+ */
 function isGapUp(previous, current) {
-    return isGap(previous, current);
+  validate(ohlc);
+  return isGap(previous, current);
 }
 
+/**
+ * Return body length of the candlestick.
+ * @param ohlc Object including the following properties:
+ *
+ * `{ open: Number, high: Number, low: Number, close: Number }`
+ */
 function isGapDown(previous, current) {
-    return isGap(current, previous);
+  validate(ohlc);
+  return isGap(current, previous);
 }
 
 // Dynamic array search for callback arguments.
 function findPattern(dataArray, callback) {
-    const upperBound = (dataArray.length - callback.length) + 1;
-    const matches = [];
+  const upperBound = (dataArray.length - callback.length) + 1;
+  const matches = [];
 
-    for (let i = 0; i < upperBound; i++) {
-        const args = [];
+  for (let i = 0; i < upperBound; i++) {
+    const args = [];
 
-        // Read the leftmost j values at position i in array.
-        // The j values are callback arguments.
-        for (let j = 0; j < callback.length; j++) {
-            args.push(dataArray[i + j]);
-        }
-
-        // Destructure args and find matches.
-        if (callback(...args)) {
-            matches.push(args[1]);
-        }
+    // Read the leftmost j values at position i in array.
+    // The j values are callback arguments.
+    for (let j = 0; j < callback.length; j++) {
+      args.push(dataArray[i + j]);
     }
 
-    return matches;
+    // Destructure args and find matches.
+    if (callback(...args)) {
+      matches.push(args[1]);
+    }
+  }
+
+  return matches;
 }
 
 // Boolean pattern detection.
 // @public
 
-function isHammer(candlestick) {
-    return isBullish(candlestick) &&
-           isHammerLike(candlestick);
+function isHammer(ohlc) {
+  return isBullish(ohlc)
+    && isHammerLike(ohlc);
 }
 
-function isInvertedHammer(candlestick) {
-    return isBearish(candlestick) &&
-           isInvertedHammerLike(candlestick);
+function isInvertedHammer(ohlc) {
+  return isBearish(ohlc)
+    && isInvertedHammerLike(ohlc);
 }
 
 function isHangingMan(previous, current) {
-    return isBullish(previous) &&
-           isBearish(current) &&
-           isGapUp(previous, current) &&
-           isHammerLike(current);
+  return isBullish(previous)
+    && isBearish(current)
+    && isGapUp(previous, current)
+    && isHammerLike(current);
 }
 
 function isShootingStar(previous, current) {
-    return isBullish(previous) &&
-           isBearish(current) &&
-           isGapUp(previous, current) &&
-           isInvertedHammerLike(current);
+  return isBullish(previous)
+    && isBearish(current)
+    && isGapUp(previous, current)
+    && isInvertedHammerLike(current);
 }
 
 function isBullishEngulfing(previous, current) {
-    return isBearish(previous) &&
-           isBullish(current) &&
-           isEngulfed(previous, current);
+  return isBearish(previous)
+    && isBullish(current)
+    && isEngulfed(previous, current);
 }
 
 function isBearishEngulfing(previous, current) {
-    return isBullish(previous) &&
-           isBearish(current) &&
-           isEngulfed(previous, current);
+  return isBullish(previous)
+    && isBearish(current)
+    && isEngulfed(previous, current);
 }
 
 function isBullishHarami(previous, current) {
-    return isBearish(previous) &&
-           isBullish(current) &&
-           isEngulfed(current, previous);
+  return isBearish(previous)
+    && isBullish(current)
+    && isEngulfed(current, previous);
 }
 
 function isBearishHarami(previous, current) {
-    return isBullish(previous) &&
-           isBearish(current) &&
-           isEngulfed(current, previous);
+  return isBullish(previous)
+    && isBearish(current)
+    && isEngulfed(current, previous);
 }
 
 function isBullishKicker(previous, current) {
-    return isBearish(previous) &&
-           isBullish(current) &&
-           isGapUp(previous, current);
+  return isBearish(previous)
+    && isBullish(current)
+    && isGapUp(previous, current);
 }
 
 function isBearishKicker(previous, current) {
-    return isBullish(previous) &&
-           isBearish(current) &&
-           isGapDown(previous, current);
+  return isBullish(previous)
+    && isBearish(current)
+    && isGapDown(previous, current);
 }
 
 // Pattern detection in arrays.
 // @public
 
 function hammer(dataArray) {
-    return findPattern(dataArray, isHammer);
+  return findPattern(dataArray, isHammer);
 }
 
 function invertedHammer(dataArray) {
-    return findPattern(dataArray, isInvertedHammer);
+  return findPattern(dataArray, isInvertedHammer);
 }
 
 function hangingMan(dataArray) {
-    return findPattern(dataArray, isShootingStar);
+  return findPattern(dataArray, isShootingStar);
 }
 
 function shootingStar(dataArray) {
-    return findPattern(dataArray, isShootingStar);
+  return findPattern(dataArray, isShootingStar);
 }
 
 function bullishEngulfing(dataArray) {
-    return findPattern(dataArray, isBullishEngulfing);
+  return findPattern(dataArray, isBullishEngulfing);
 }
 
 function bearishEngulfing(dataArray) {
-    return findPattern(dataArray, isBearishEngulfing);
+  return findPattern(dataArray, isBearishEngulfing);
 }
 
 function bullishHarami(dataArray) {
-    return findPattern(dataArray, isBullishHarami);
+  return findPattern(dataArray, isBullishHarami);
 }
 
 function bearishHarami(dataArray) {
-    return findPattern(dataArray, isBearishHarami);
+  return findPattern(dataArray, isBearishHarami);
 }
 
 function bullishKicker(dataArray) {
-    return findPattern(dataArray, isBullishKicker);
+  return findPattern(dataArray, isBullishKicker);
 }
 
 function bearishKicker(dataArray) {
-    return findPattern(dataArray, isBearishKicker);
+  return findPattern(dataArray, isBearishKicker);
 }
 
 module.exports.isHammer = isHammer;
